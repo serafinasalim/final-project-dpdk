@@ -26,6 +26,11 @@ int main() {
         exit(EXIT_FAILURE);
     }
 
+    int bufsize = 8 * 1024 * 1024; // 8 MB
+    if (setsockopt(sockfd, SOL_SOCKET, SO_RCVBUF, &bufsize, sizeof(bufsize)) < 0) {
+        perror("setsockopt(SO_RCVBUF) failed");
+    }
+
     memset(&servaddr, 0, sizeof(servaddr));
     servaddr.sin_family = AF_INET;
     servaddr.sin_addr.s_addr = INADDR_ANY;
@@ -47,6 +52,7 @@ int main() {
 
     printf("Listening on UDP port %d...\n", PORT);
 
+    long packet_count = 0;
     while (1) {
         ssize_t n = recvfrom(sockfd, buffer, BUF_SIZE, 0, (struct sockaddr *)&cliaddr, &len);
         if (n < 0) {
@@ -56,7 +62,10 @@ int main() {
 
         long long now = get_time_us();
         fprintf(logfile, "%lld,%zd\n", now, n);
-        fflush(logfile);
+
+        // Flush every 100 packets instead of every packet → reduce disk overhead
+        if (++packet_count % 100 == 0)
+            fflush(logfile);
     }
 
     close(sockfd);
